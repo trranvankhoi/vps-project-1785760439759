@@ -1,4 +1,4 @@
-name: Create VPS (Auto Restart)
+name: Create VPS
 
 on:
   workflow_dispatch:
@@ -412,41 +412,3 @@ jobs:
         }
         
         Write-Host "⏰ VPS session completed. Preparing restart..."
-
-    - name: 🔄 Auto Restart Workflow
-      if: always()
-      run: |
-        $lockFile = "restart.lock"
-        $currentTime = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-        
-        "RESTART_$(Get-Date -Format 'yyyyMMdd_HHmmss')" | Out-File -FilePath $lockFile -Encoding UTF8
-        
-        Write-Host "🔁 Initiating workflow restart at $currentTime"
-        
-        try {
-          Stop-Process -Name "cloudflared" -Force -ErrorAction SilentlyContinue
-          Stop-Process -Name "python" -Force -ErrorAction SilentlyContinue
-          Stop-Process -Name "tvnserver" -Force -ErrorAction SilentlyContinue
-        } catch {
-          Write-Host "⚠️ Process cleanup failed: $_"
-        }
-        
-        Start-Sleep -Seconds 10
-        
-        try {
-          $headers = @{ "Accept" = "application/vnd.github+json"; "Authorization" = "Bearer $env:GITHUB_TOKEN_VPS"; "Content-Type" = "application/json"; "X-GitHub-Api-Version" = "2022-11-28" }
-          
-          $payload = @{ event_type = "create-vps"; client_payload = @{ vps_name = "vps-project-1785760439759"; restart_time = $currentTime; auto_restart = $true } } | ConvertTo-Json -Depth 2
-          
-          Invoke-RestMethod -Uri "https://api.github.com/repos/trranvankhoi/vps-project-1785760439759/dispatches" -Method Post -Headers $headers -Body $payload -TimeoutSec 30
-          Write-Host "✅ Workflow restart triggered"
-          
-          git add $lockFile
-          git commit -m "🔄 Auto restart - $currentTime" --allow-empty
-          git push origin main --force-with-lease
-          
-        } catch {
-          Write-Host "❌ Restart failed: $_"
-          Remove-Item $lockFile -Force -ErrorAction SilentlyContinue
-          exit 1
-        }
